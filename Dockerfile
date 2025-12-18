@@ -8,6 +8,8 @@ RUN pip install --no-cache-dir \
     scipy \
     matplotlib \
     seaborn \
+    pytest \
+    pytest-cov \
     jupyterlab-git \
     jupyterlab-lsp \
     python-lsp-server[all]
