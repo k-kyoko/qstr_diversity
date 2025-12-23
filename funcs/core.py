@@ -1,12 +1,11 @@
-import os
-import sys
-
 import numpy as np
 import pandas as pd
+from inspect import currentframe
 import matplotlib.pyplot as plt
+import warnings
 
 
-def create_dissim_amy(raw: pd.DataFrame, unique_words: np.array, sub_no: int = -1) -> pd.DataFrame: 
+def create_dissim_amy(raw: pd.DataFrame, unique_words: np.array, sub_no: int = -1) -> pd.DataFrame:
     """
     Amy式データフレームから単語のdissimilarity matrixを作成する関数
     For symmetry matrix
@@ -42,7 +41,7 @@ def create_dissim_amy(raw: pd.DataFrame, unique_words: np.array, sub_no: int = -
     # NaNのうち対角成分を0に置換、他にNaNがあれば警告
     for i in range(len(dissim_mtx)):
         for j in range(len(dissim_mtx[0])):
-            if dissim_mtx[i, j].isna() == True:
+            if dissim_mtx[i, j].isna():
                 if i == j:
                     dissim_mtx[i, j] = 0
                 else:
@@ -57,59 +56,36 @@ def viz_dissim(raw: pd.DataFrame, unique_words: np.array, sub_no: int=-1, save: 
 
 
 def cal_dissim2dist(dissim_mtx: pd.DataFrame) -> pd.DataFrame:
-    dist_mtx = dissim_mtx.copy()
-    # for the time you want to change the definition of distance
-    
+    # check input validity
+    dissim = internal_check_input_instance(dissim_mtx)
+    internal_check_basic_errors(0, dissim=dissim)
+
+    # calculation
+    dist_mtx = dissim_mtx.copy()  # for time you want to change the def of dist
+
     return dist_mtx
 
+
 def cal_dist2sim(dist_mtx: pd.DataFrame, t: float) -> pd.DataFrame:
+    # check input validity
+    dist = internal_check_input_instance(dist_mtx)
+    internal_check_basic_errors(0, dist=dist)
+    internal_check_t(t)
 
-    if t <= 0:
-        raise ValueError(f"t must be > 0, got {t}")
-
-    dist = dist_mtx.to_numpy(dtype=float)
-
-    if not np.isfinite(dist).all():
-        raise ValueError("dist_mtx contains NaN or inf.")
-    
+    # calculation
     sim_mtx = np.exp(-1 * t * dist)
-    
-    return pd.DataFrame(sim_mtx, index=dist_mtx.index, columns=dist_mtx.columns)
+
+    return pd.DataFrame(sim_mtx,
+                        index=dist_mtx.index,
+                        columns=dist_mtx.columns)
 
 
 def cal_sim2genmag(sim_mtx: pd.DataFrame) -> float:
-    A = sim_mtx.to_numpy(dtype=float)
+    # check input validity
+    A = internal_check_input_instance(sim_mtx)
+    internal_check_basic_errors(1, A=A)
 
-    if not np.isfinite(A).all():
-        raise ValueError("sim_mtx contains NaN or inf.")
-    if A.ndim != 2:
-        raise ValueError(f"sim_mtx must be 2D, got ndim={A.ndim}")
-
-    if warn:
-        if A.shape[0] != A.shape[1]:
-            print(
-                "Warning: sim_mtx is not square. "
-                "Generalized magnitude is computable via pseudoinverse, "
-                "but interpretation as 'diversity' may be non-standard."
-            )
-
-        # 対称性チェック（近似）
-        if A.shape[0] == A.shape[1]:
-            if not np.allclose(A, A.T, atol=1e-10, rtol=1e-8):
-                print(
-                    "Warning: sim_mtx is not symmetric. "
-                    "This can make the interpretation hard."
-                )
-
-        # 対角成分が1か
-        diag = np.diag(A) if A.shape[0] == A.shape[1] else None
-        if diag is not None:
-            if not np.allclose(diag, 1.0, atol=1e-8, rtol=1e-8):
-                print(
-                    "Warning: All sim mtx diagonal entries are not 1."
-                )
-    
-    
+    # calculation
     A_pinv = np.linalg.pinv(A)
     genmag = np.sum(A_pinv)
 
@@ -117,25 +93,64 @@ def cal_sim2genmag(sim_mtx: pd.DataFrame) -> float:
 
 
 def cal_dist2spread(dist_mtx: pd.DataFrame, t: float) -> float:
-    
-    D = dist_mtx.to_numpy(dtype=float)
-    
-    if t <= 0:
-        raise ValueError(f"t must be > 0, got {t}")
-    if D.ndim != 2 or D.shape[0] != D.shape[1]:
-        raise ValueError(f"dist_mtx must be square, got shape {D.shape}")
-    if not np.isfinite(D).all():
-        raise ValueError("dist_mtx contains NaN or inf.")
+    # check input validity
+    D = internal_check_input_instance(dist_mtx)
+    internal_check_basic_errors(0, D=D)
+    internal_check_t(t)
+
+    # calculation
+    eps = 1e-15  # calculation safety
 
     Z = np.exp(-1 * t * D)
     denom = Z.sum(axis=1)
-    
-    eps = 1e-15 #calculation safety
     denom = np.maximum(denom, eps)
     spread = float((1.0 / denom).sum())
 
-    if denom<eps:
-        print("Warning: calculation was near to zero-division.")
-    
+    if denom < eps:
+        warnings.warn("Calculation was near to zero-division.")
+
     return spread
-    
+
+
+########## internal functions ##########
+
+def internal_check_input_instance(pd_input):
+    if isinstance(pd_input, pd.DataFrame):
+        np_output = pd_input.to_numpy(dtype=float)
+    else:
+        raise ValueError(f"input must be pd.DataFrame, got {type(pd_input)}.")
+    return np_output
+
+
+def internal_check_basic_errors(diag_val, **inputs):
+    for name, np_input in inputs.items():
+        try:
+            if not np.isfinite(np_input).all():
+                raise ValueError(f"{name} contains NaN or inf.")
+        except TypeError:
+            warnings.warn(
+                f"{name} has non-numeric dtype (dtype={np_input.dtype})")
+        if np_input.shape[0] != np_input.shape[1]:
+            warnings.warn(f"{name} is not square")
+            continue  # guarantee square
+        if not np.allclose(np.diag(np_input), diag_val):
+            warnings.warn(f"diag vals are not {diag_val} in {name}")
+        if not np.allclose(np_input, np_input.T):
+            warnings.warn(f"{name} is not symmetric")
+
+
+def internal_check_t(t):
+    if t <= 0 or not np.isfinite(t):
+        raise ValueError(f"t must be float value > 0, got {t}")
+
+
+# 変数の名前と値をまとめてprint
+def print_(*args):
+    names = {id(v): k for k, v in currentframe().f_back.f_locals.items()}
+    print('\n'.join([names.get(id(arg), '???') + ' = ' + repr(arg) for arg in args]))
+
+
+# 変数の名前をprint
+def print_name(*args):
+    names = {id(v): k for k, v in currentframe().f_back.f_locals.items()}
+    print('\n'.join([names.get(id(arg), '???') for arg in args]))
