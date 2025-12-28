@@ -21,7 +21,8 @@ def test_cal_dissim2dist_basic(dissim_val):
     # 入力の対角成分が0でなかった場合にwarn
     # 行列が正方行列でなかった場合にwarn
     # t>0でない, nan, infの場合にerror
-    # distにNaN, infを含んだ場合にerror
+    # dissimにNaN, infを含んだ場合にerror
+    # distに0未満が含まれた場合にerror
 
     dissim = pd.DataFrame(
         [[0.0, dissim_val, 0.5],
@@ -89,7 +90,7 @@ def test_cal_dist2sim_basic(dist_val, t):
     # 入力の対角成分が0でなかった場合にwarn
     # 行列が正方行列でなかった場合にwarn
     # t>0でない, nan, infの場合にerror
-    # distにNaN, infを含んだ場合にerror
+    # distにNaN, inf, 0未満を含んだ場合にerror
 
     dist = pd.DataFrame(
         [[0.0, dist_val, 0.5],
@@ -117,9 +118,11 @@ def test_cal_dist2sim_instance_error(bad_input):
         cal_dist2sim(bad_input, t=1.0)
 
 
-@pytest.mark.parametrize("bad_value", [np.nan, np.inf, -np.inf])
+@pytest.mark.parametrize("bad_value", [np.nan, np.inf, -np.inf, -0.01])
 def test_cal_dist2sim_nan_inf_error(bad_value):
-    dist = pd.DataFrame([[0.0, bad_value], [1.0, 0.0]])
+    dist = pd.DataFrame([[0.0, 1.0, bad_value],
+                         [1.0, 0.0, 0.7],
+                         [bad_value, 0.7, 0.0]])
     with pytest.raises(ValueError):
         cal_dist2sim(dist, t=1.0)
 
@@ -215,20 +218,21 @@ def test_cal_sim2genmag_symmetry_warning():
 
 @pytest.mark.parametrize(
     "dist_val, ans",
-    list(zip([0.0, 1.0, 0.5], [#未計算])))
+    list(zip([0.0, 1.0, 0.5],
+             [1.3592128579943152, 1.6488108069240883, 1.518312307483551])))
 def test_cal_dist2spread_basic(dist_val, ans):
     # 入力はpd, 出力はfloat
     # 入力の対角成分が1でなかった場合にwarn
     # 行列が正方行列でなかった場合にwarn
     # 行列が対称行列でなかった場合にwarn
     # t>0でない, nan, infの場合にerror
-    # distにNaN, infを含んだ場合にerror
+    # distにNaN, inf, 0未満を含んだ場合にerror
 
     dist = pd.DataFrame([[0.0, 1.0, dist_val],
                         [1.0, 0.0, 0.7],
                         [dist_val, 0.7, 0.0]],
-                       index=["a", "b", "c"],
-                       columns=["a", "b", "c"])
+                        index=["a", "b", "c"],
+                        columns=["a", "b", "c"])
     spread = cal_dist2spread(dist, 1.0)
 
     assert isinstance(spread, float)
@@ -241,9 +245,11 @@ def test_cal_dist2spread_instance_error(bad_input):
         cal_dist2spread(bad_input, 1.0)
 
 
-@pytest.mark.parametrize("bad_value", [np.nan, np.inf, -np.inf])
+@pytest.mark.parametrize("bad_value", [np.nan, np.inf, -np.inf, -0.01])
 def test_cal_dist2spread_nan_inf_error(bad_value):
-    dist = pd.DataFrame([[0.0, bad_value], [1.0, 0.0]])
+    dist = pd.DataFrame([[0.0, 1.0, bad_value],
+                         [1.0, 0.0, 0.7],
+                         [bad_value, 0.7, 0.0]])
     with pytest.raises(ValueError):
         cal_dist2spread(dist, 1.0)
 
