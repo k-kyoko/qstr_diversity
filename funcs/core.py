@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
 from inspect import currentframe
-import matplotlib.pyplot as plt
+from typing import Optional
 import warnings
 
 
-def create_dissim_amy(raw: pd.DataFrame, unique_words: np.array, sub_no: int = -1) -> pd.DataFrame:
+def create_dissim_amy(raw: pd.DataFrame, sub_no:int=-1, unique_words: Optional[np.ndarray] = None) -> pd.DataFrame:
     """
     Amy式データフレームから単語のdissimilarity matrixを作成する関数
     For symmetry matrix
@@ -17,17 +17,22 @@ def create_dissim_amy(raw: pd.DataFrame, unique_words: np.array, sub_no: int = -
     Return:
     - dissim_mtx (pd.DataFrame)
     """
+
+    word1 = raw.iloc[0]
+    word2 = raw.iloc[1]
+
+    if unique_words is None:
+        all_words_combination = np.concatenate([word1, word2])
+        unique_words = np.sort(np.unique(all_words_combination))
+
     dissim_mtx = pd.DataFrame(np.nan, index=unique_words, columns=unique_words)
-
-    word1 = raw.iloc[0, :]
-    word2 = raw.iloc[1, :]
-
     for i in range(len(word1)):
         w1 = word1.iloc[i]
         w2 = word2.iloc[i]
 
         if sub_no == -1:
-            dissim_val = raw.iloc[2:, i].mean()
+            temp = raw.iloc[2:, i].astype(float)
+            dissim_val = temp.mean()
         else:
             row_idx = 2 + sub_no
             if row_idx >= raw.shape[0]:
@@ -35,24 +40,19 @@ def create_dissim_amy(raw: pd.DataFrame, unique_words: np.array, sub_no: int = -
 
             dissim_val = raw.iloc[row_idx, i]
 
-        dissim_mtx.at[w1, w2] = dissim_val
-        dissim_mtx.at[w2, w1] = dissim_val
+        dissim_mtx.at[w1, w2] = float(dissim_val)
+        dissim_mtx.at[w2, w1] = float(dissim_val)
 
     # NaNのうち対角成分を0に置換、他にNaNがあれば警告
     for i in range(len(dissim_mtx)):
-        for j in range(len(dissim_mtx[0])):
-            if dissim_mtx[i, j].isna():
+        for j in range(len(dissim_mtx.iloc[0, :])):
+            if pd.isna(dissim_mtx.iloc[i, j]):
                 if i == j:
-                    dissim_mtx[i, j] = 0
+                    dissim_mtx.iloc[i, j] = 0
                 else:
                     print(f"NaN in this Dissimilarity matrix: ({i}, {j})")
 
     return dissim_mtx
-
-
-def viz_dissim(raw: pd.DataFrame, unique_words: np.array, sub_no: int=-1, save: bool=False):
-
-    return None
 
 
 def cal_dissim2dist(dissim_mtx: pd.DataFrame) -> pd.DataFrame:
@@ -70,6 +70,7 @@ def cal_dist2sim(dist_mtx: pd.DataFrame, t: float) -> pd.DataFrame:
     # check input validity
     dist = internal_check_input_instance(dist_mtx)
     internal_check_basic_errors(0, dist=dist)
+    internal_check_dist_nonnegative(dist)
     internal_check_t(t)
 
     # calculation
@@ -96,6 +97,7 @@ def cal_dist2spread(dist_mtx: pd.DataFrame, t: float) -> float:
     # check input validity
     D = internal_check_input_instance(dist_mtx)
     internal_check_basic_errors(0, D=D)
+    internal_check_dist_nonnegative(D)
     internal_check_t(t)
 
     # calculation
@@ -106,7 +108,7 @@ def cal_dist2spread(dist_mtx: pd.DataFrame, t: float) -> float:
     denom = np.maximum(denom, eps)
     spread = float((1.0 / denom).sum())
 
-    if denom < eps:
+    if denom.any() < eps:
         warnings.warn("Calculation was near to zero-division.")
 
     return spread
@@ -142,6 +144,11 @@ def internal_check_basic_errors(diag_val, **inputs):
 def internal_check_t(t):
     if t <= 0 or not np.isfinite(t):
         raise ValueError(f"t must be float value > 0, got {t}")
+
+
+def internal_check_dist_nonnegative(dist_mtx):
+    if np.any(dist_mtx < 0):
+        raise ValueError("Distance matrix contains negative values.")
 
 
 # 変数の名前と値をまとめてprint
