@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 from matplotlib.ticker import LogLocator, LogFormatterMathtext, NullFormatter
 import seaborn as sns
 from typing import Optional, Sequence, Union, Mapping
@@ -178,6 +179,7 @@ def plt_metric_individual(
 
 
 SubjectID = Union[int, str]
+
 def plt_metric_overlay(
     metric_df: pd.DataFrame,
     subjects: Sequence[SubjectID],
@@ -187,6 +189,7 @@ def plt_metric_overlay(
     aggregate: str = "median",   # "mean" or "median"
     show_band: bool = False,
     band_quantiles: tuple[float, float] = (0.25, 0.75),
+    show_legend: bool = True,
     xlim: Optional[tuple[float, float]] = None,
     ylim: Optional[tuple[float, float]] = None,
     output_dir: Optional[str] = None,  # if None, figure won't be saved
@@ -227,6 +230,7 @@ def plt_metric_overlay(
         hi = np.nanquantile(Y, qhi, axis=0)
         ax.fill_between(t, lo, hi, alpha=0.15, label="_nolegend_")
 
+    agg_label = None
     if show_aggregate:
         if aggregate == "mean":
             agg = np.nanmean(Y, axis=0)
@@ -249,21 +253,26 @@ def plt_metric_overlay(
     if ylim is not None:
         ax.set_ylim(*ylim)
 
-    if len(subjects) <= 6:
-        ax.legend(frameon=True, fontsize=14)
-    else:
-        if show_aggregate:
-            ax.legend(frameon=True, fontsize=14)
+    overlay_text = f"Overlay:{100*band_quantiles[0]}~{100*band_quantiles[1]}%, N={len(subjects)}"
+
+    if show_legend:
+        handles, labels = ax.get_legend_handles_labels()
+        overlay_handle = Line2D([], [], linestyle="none", marker=None, color="none", label=overlay_text)
+        handles = [overlay_handle] + handles
+        labels = [overlay_text] + labels
+        ax.legend(handles=handles, labels=labels, frameon=True, fontsize=14)
 
     ax.tick_params(axis="x", which="both", labelsize=13)
     ax.tick_params(axis="y", which="both", labelsize=13)
     fig.tight_layout()
 
     if output_dir is not None:
-        out_png = os.path.join(output_dir, f"{metric_name}_{title}.png")
+        os.makedirs(output_dir, exist_ok=True)
+        safe_title = "" if title is None else str(title).replace("/", "_")
+        out_png = os.path.join(output_dir, f"{metric_name}_{safe_title}_{aggregate}.png")
         fig.savefig(out_png, dpi=300, bbox_inches="tight")
-    plt.close(fig)
 
+    plt.close(fig)
     return fig
 
 
