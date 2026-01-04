@@ -114,6 +114,17 @@ def cal_dist2spread(dist_mtx: pd.DataFrame, t: float) -> float:
     return spread
 
 
+def check_positivedefinite(A: np.array) -> bool:
+    # check positive definiteness
+    if np.array_equal(A, A.T):
+        try:
+            np.linalg.cholesky(A)
+            return True
+        except np.linalg.LinAlgError:
+            return False  # semi-positive definite is here
+    return False
+
+
 ########## internal functions ##########
 
 def internal_check_input_instance(pd_input):
