@@ -10,9 +10,10 @@ from adjustText import adjust_text
 def plt_dissim_heatmap(
     dissimilarity_matrix: pd.DataFrame,
     mode_dissim: bool = True,
-    annotation: bool = False,
+    save: bool = False,
     figpath: str = "/home/jovyan/work/fig/temp/",
-    save: bool = False):
+    annotation: bool = False
+    ):
 
     """
     dissimilarity matrixをヒートマップとして表示する関数。
