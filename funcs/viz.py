@@ -4,11 +4,14 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
 from matplotlib.lines import Line2D
 from matplotlib.ticker import LogLocator, LogFormatterMathtext, NullFormatter
 import seaborn as sns
-from typing import Optional, Sequence, Union, Mapping
+from typing import Optional, Sequence, Union, Mapping, Literal
 from adjustText import adjust_text
+
+SubjectID = Union[int, str]
 
 
 def plt_dissim_heatmap(
@@ -92,6 +95,95 @@ def plt_mds(mds_res: pd.DataFrame,
     plt.show()
 
 
+from typing import Optional, Literal, Union
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+SubjectID = Union[int, str]
+
+def plt_metric_single(
+    metric_df: pd.DataFrame,
+    subject: SubjectID,
+    metric_name: str,
+    output_dir: str,
+    ylim: Optional[tuple[float, float]] = None,
+    xlim: Optional[tuple[float, float]] = None,
+    positive_definite_df: Optional[pd.DataFrame] = None,
+    posdef_mode: Literal["two_color", "true_only"] = "two_color",
+    figsize: tuple[float, float] = (7.2, 4.6),
+    show: bool = True,
+) -> str:
+    """
+    show plot of one subject.
+
+    - x: t (log scale; _apply_log_x_pretty is spplied)
+    - y: metric_df value
+    - positive_definite_df is not None -> overlay scatter
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    t_sorted, df = prepare_metric_df(metric_df)
+
+    if subject not in df.index:
+        raise KeyError(f"Subject not found in metric_df.index: {subject}")
+
+    # xlim / ylim
+    x_lim = xlim if xlim is not None else (float(t_sorted.min()), float(t_sorted.max()))
+    y_lim = ylim if ylim is not None else None
+
+    # check consistency with positive definite df
+    pos_df = None
+    if positive_definite_df is not None:
+        t_pos, pos_df = prepare_metric_df(positive_definite_df)
+        if len(t_pos) != len(t_sorted) or not np.allclose(
+            np.asarray(t_pos, float), np.asarray(t_sorted, float),
+            rtol=0, atol=0
+        ):
+            raise ValueError("positive_definite_df columns (t) must match metric_df columns (t).")
+        if subject not in pos_df.index:
+            raise KeyError(f"Subject not found in positive_definite_df.index: {subject}")
+
+    # --- plot ---
+    fig, ax = plt.subplots(figsize=figsize)
+
+    y = df.loc[subject].to_numpy()
+    ax.plot(t_sorted, y)
+
+    _apply_log_x_pretty(ax, x_lim)
+
+    if pos_df is not None:
+        pos_row = pos_df.loc[subject].to_numpy()
+        scatter_by_positive_definite(
+            ax=ax,
+            t_all=t_sorted,
+            y=y,
+            posdef_row=pos_row,
+            mode=posdef_mode,
+            s=22,
+            alpha=0.9,
+            zorder=3,
+        )
+
+    if y_lim is not None:
+        ax.set_ylim(*y_lim)
+
+    ax.set_title(f"Subject {subject}", fontsize=14)
+    ax.set_xlabel("Ratio (log scale)", fontsize=14)
+    ax.set_ylabel(metric_name, fontsize=14)
+
+    fig.tight_layout()
+
+    out_png = os.path.join(output_dir, f"{metric_name}_sub{subject}.png")
+    fig.savefig(out_png, dpi=300, bbox_inches="tight")
+
+    if show:
+        plt.show()
+    plt.close(fig)
+
+    return out_png
+
+
 def plt_metric_individual(
     metric_df: pd.DataFrame,
     metric_name: str,
@@ -102,10 +194,25 @@ def plt_metric_individual(
     xlim: Optional[tuple[float, float]] = None,
     yticks_all: bool = False,
     xticks_all: bool = False,
+    positive_definite_df: Optional[pd.DataFrame] = None,
+    posdef_mode: Literal["two_color", "true_only"] = "two_color",
 ) -> list[str]:
 
     os.makedirs(output_dir, exist_ok=True)
     t_sorted, df = prepare_metric_df(metric_df)
+
+    pos_df = None
+    if positive_definite_df is not None:
+        t_pos, pos_df = prepare_metric_df(positive_definite_df)
+        if len(t_pos) != len(t_sorted) or not np.allclose(
+            np.asarray(t_pos, float), np.asarray(t_sorted, float),
+            rtol=0, atol=0
+        ):
+            raise ValueError("positive_definite_df columns (t) must match metric_df columns (t).")
+
+        missing_pos = [s for s in df.index if s not in pos_df.index]
+        if missing_pos:
+            raise KeyError(f"Subjects not found in positive_definite_df.index: {missing_pos}")
 
     subjects = list(df.index)
     subjects_per_page = nrows * ncols
@@ -114,10 +221,7 @@ def plt_metric_individual(
 
     # xlim / ylim
     x_lim = xlim if xlim is not None else (float(t_sorted.min()), float(t_sorted.max()))
-    if ylim is not None:
-        y_lim = ylim
-    else:
-        y_lim = None
+    y_lim = ylim if ylim is not None else None
 
     saved = []
 
@@ -144,6 +248,19 @@ def plt_metric_individual(
             ax.plot(t_sorted, y)
             _apply_log_x_pretty(ax, x_lim)
 
+            if pos_df is not None:
+                pos_row = pos_df.loc[sub].to_numpy()
+                scatter_by_positive_definite(
+                    ax=ax,
+                    t_all=t_sorted,
+                    y=y,
+                    posdef_row=pos_row,
+                    mode=posdef_mode,
+                    s=22,
+                    alpha=0.9,
+                    zorder=3,
+                )
+
             if y_lim is not None:
                 ax.set_ylim(*y_lim)
 
@@ -167,7 +284,7 @@ def plt_metric_individual(
             left=0.08, right=0.99,
             bottom=0.10, top=0.94,
             wspace=0.25, hspace=0.55
-            )
+        )
 
         out_png = os.path.join(output_dir, f"{metric_name}_page{page+1:02d}.png")
         fig.savefig(out_png, dpi=300, bbox_inches="tight")
@@ -178,7 +295,62 @@ def plt_metric_individual(
     return saved
 
 
-SubjectID = Union[int, str]
+def scatter_by_positive_definite(
+    ax: Axes,
+    t_all: np.ndarray,  # all t, row indices of positive_definite(boolean) df
+    y: np.ndarray,
+    posdef_row: Optional[np.ndarray],  # True/False, exact row of positive_definite(boolean) df
+    mode: Literal["two_color", "true_only"] = "two_color",
+    s: float = 22,
+    alpha: float = 0.9,
+    zorder: int = 3,
+) -> None:
+    """
+    overlay scatter depends on the matrix is positive definite or not
+    - if posdef_row: None -> Do nothing
+    - mode:
+        - "two_color": True=Blue, False=Red
+        - "true_only": True=Blue (False is not plotted)
+    """
+    if posdef_row is None:
+        return
+
+    t_all = np.asarray(t_all, dtype=float)
+    y = np.asarray(y, dtype=float)
+    p = np.asarray(posdef_row)
+
+    if t_all.shape != y.shape or p.shape != y.shape:
+        raise ValueError(f"Shape mismatch: t{t_all.shape}, y{y.shape}, posdef{p.shape}")
+
+    mask_valid_y = np.isfinite(y)
+    mask_known_p = ~pd.isna(p)
+    mask = mask_valid_y & mask_known_p
+    if not np.any(mask):
+        return
+
+    p_bool = np.asarray(p[mask]).astype(bool)
+
+    if mode == "true_only":
+        m = mask & p_bool
+        if np.any(m):
+            ax.scatter(t[m], y[m], s=s, alpha=alpha, color="tab:blue",
+                       linewidths=0, zorder=zorder)
+        return
+
+    if mode == "two_color":
+        m_true = mask & p_bool
+        m_false = mask & (~p_bool)
+
+        if np.any(m_false):
+            ax.scatter(t_all[m_false], y[m_false], s=s, alpha=alpha, color="tab:red",
+                       linewidths=0, zorder=zorder)
+        if np.any(m_true):
+            ax.scatter(t_all[m_true], y[m_true], s=s, alpha=alpha, color="tab:blue",
+                       linewidths=0, zorder=zorder)
+        return
+
+    raise ValueError("mode must be 'two_color' or 'true_only'")
+
 
 def plt_metric_overlay(
     metric_df: pd.DataFrame,
