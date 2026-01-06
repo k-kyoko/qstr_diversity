@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import re
 from pathlib import Path
@@ -60,48 +61,95 @@ def plt_dissim_heatmap(
     plt.show()
 
 
-def plt_mds(mds_res: pd.DataFrame,
-            dissimilarity_matrix: pd.DataFrame,
-            figpath: str = '/home/jovyan/work/fig/temp/'):
-    # Plot the MDS results
-    fig, ax = plt.subplots(figsize=(10, 7), tight_layout=True)
-    ax.scatter(mds_res[:, 0], mds_res[:, 1])
+def plt_mds(
+    mds_res: Union[np.ndarray, pd.DataFrame],
+    dissimilarity_matrix: pd.DataFrame,
+    save_path: Union[str, Path] = "/home/jovyan/work/fig/temp/mds.png",
+    connect_slices: Sequence[tuple[slice, str]] = (
+        (slice(0, 10), "Colors"),
+        (slice(10, 23), "Emotions")),
+    plot_line: bool = False,
+) -> Path:
+    """
+    sklearn.manifold.MDS の embedding（mds_res）を 2D/3D で可視化して保存する。
 
-    # ラベル調整
-    texts = [plt.text(mds_res[i, 0], mds_res[i, 1], word, fontsize=15)
-             for i, word in enumerate(dissimilarity_matrix.index)]
-    adjust_text(texts, only_move={'points': 'xy', 'text': 'xy'},
-                arrowprops=dict(arrowstyle="->", color='b', lw=1.2))
+    - 2D: adjust_text でラベル衝突回避を試みる
+    - 3D: adjust_text は非対応なので単純配置（ax.text）にする
+    """
 
-    # 最初の10点を赤い線、次の15点を黒い線でつなぐ
-    ax.plot(mds_res[:10, 0], mds_res[:10, 1], 'r-', lw=1, label='Colours')
-    ax.plot(mds_res[10:25, 0], mds_res[10:25, 1], 'g-', lw=1, label='Emotions')
+    X = np.asarray(mds_res)
+    if X.ndim != 2:
+        raise ValueError(f"mds_res must be 2D array-like (n_samples, n_dims). Got shape={X.shape}")
 
-    # 凡例
-    ax.legend(fontsize=22)
-    xticklabels = ax.get_xticklabels()
-    yticklabels = ax.get_yticklabels()
-    ax.set_xticklabels(xticklabels, fontsize=15)
-    ax.set_yticklabels(yticklabels, fontsize=15)
-    ax.set_xlabel('Dim 1', fontsize=18)
-    ax.set_ylabel('Dim 2', fontsize=18)
-    figpath = Path(figpath)
-    title = figpath.stem
-    ax.set_title(title, fontsize=24)
+    n, d = X.shape
+    if d not in (2, 3):
+        raise ValueError(f"Only 2D or 3D supported. Got d={d}")
 
-    figpath.parent.mkdir(parents=True, exist_ok=True)
-    save_path = figpath.with_suffix(".png")
-    plt.savefig(save_path, dpi=300)
+    labels = list(map(str, dissimilarity_matrix.index))
+    if len(labels) != n:
+        raise ValueError(f"Label count mismatch: len(labels)={len(labels)} vs n_samples={n}")
+
+    save_path = Path(save_path)
+
+    # --- figure settings ---
+    figsize = (10, 7)
+    point_size = 40
+    label_fontsize = 13
+    tick_labelsize = 15
+    title_fontsize = 24
+    legend_fontsize = 18
+
+    # --- figure/axes ---
+    fig = plt.figure(figsize=figsize, tight_layout=True)
+    if d == 3:
+        ax = fig.add_subplot(111, projection="3d")
+    else:
+        ax = fig.add_subplot(111)
+
+    # --- scatter ---
+    if d == 3:
+        ax.scatter(X[:, 0], X[:, 1], X[:, 2], s=point_size)
+    else:
+        ax.scatter(X[:, 0], X[:, 1], s=point_size)
+
+    # --- labels ---
+    if d == 2:
+        texts = [
+            ax.text(X[i, 0], X[i, 1], labels[i], fontsize=label_fontsize)
+            for i in range(n)
+        ]
+        adjust_text(
+            texts,
+            ax=ax,
+            only_move={"points": "xy", "text": "xy"},
+            arrowprops=dict(arrowstyle="->", lw=1.2),
+        )
+    else:
+        for i in range(n):
+            ax.text(X[i, 0], X[i, 1], X[i, 2], labels[i], fontsize=label_fontsize)
+
+    # --- connect slices lines ---
+    if plot_line:
+        for sl, name in connect_slices:
+            idx = np.arange(n)[sl]
+            if len(idx) < 2:
+                continue
+            if d == 3:
+                ax.plot(X[idx, 0], X[idx, 1], X[idx, 2], lw=1, label=name)
+            else:
+                ax.plot(X[idx, 0], X[idx, 1], lw=1, label=name)
+
+    # --- cosmetics (NO set_xticklabels -> no warning) ---
+    ax.tick_params(labelsize=tick_labelsize)
+    ax.legend(fontsize=legend_fontsize)
+    ax.set_title(save_path.stem, fontsize=title_fontsize)
+
+    # --- save/show ---
+    fig.savefig(save_path, dpi=300)
     plt.show()
 
+    return save_path
 
-from typing import Optional, Literal, Union
-import os
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-
-SubjectID = Union[int, str]
 
 def plt_metric_single(
     metric_df: pd.DataFrame,
