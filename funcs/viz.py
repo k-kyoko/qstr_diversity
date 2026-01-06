@@ -65,14 +65,17 @@ def plt_mds(
     mds_res: Union[np.ndarray, pd.DataFrame],
     dissimilarity_matrix: pd.DataFrame,
     save_path: Union[str, Path] = "/home/jovyan/work/fig/temp/mds.png",
-    connect_slices: Sequence[tuple[slice, str]] = (
+    point_groups: Sequence[tuple[slice, str]] = (
         (slice(0, 10), "Colors"),
-        (slice(10, 23), "Emotions")),
+        (slice(10, 23), "Emotions"),
+    ),
     plot_line: bool = False,
 ) -> Path:
     """
     sklearn.manifold.MDS の embedding（mds_res）を 2D/3D で可視化して保存する。
 
+    - 点の色は point_groups（slice ごとのグルーピング）に合わせて変える
+    - plot_line=True の場合、各グループ内の点を同色で順に結ぶ
     - 2D: adjust_text でラベル衝突回避を試みる
     - 3D: adjust_text は非対応なので単純配置（ax.text）にする
     """
@@ -90,6 +93,7 @@ def plt_mds(
         raise ValueError(f"Label count mismatch: len(labels)={len(labels)} vs n_samples={n}")
 
     save_path = Path(save_path)
+    save_path.parent.mkdir(parents=True, exist_ok=True)
 
     # --- figure settings ---
     figsize = (10, 7)
@@ -98,26 +102,49 @@ def plt_mds(
     tick_labelsize = 15
     title_fontsize = 24
     legend_fontsize = 18
+    axis_labelsize = 16
 
     # --- figure/axes ---
     fig = plt.figure(figsize=figsize, tight_layout=True)
-    if d == 3:
-        ax = fig.add_subplot(111, projection="3d")
-    else:
-        ax = fig.add_subplot(111)
+    ax = fig.add_subplot(111, projection="3d") if d == 3 else fig.add_subplot(111)
 
-    # --- scatter ---
-    if d == 3:
-        ax.scatter(X[:, 0], X[:, 1], X[:, 2], s=point_size)
-    else:
-        ax.scatter(X[:, 0], X[:, 1], s=point_size)
+    # --- group scatter (colored) ---
+    all_idx = np.arange(n)
+    assigned = np.zeros(n, dtype=bool)
+
+    for gi, (sl, name) in enumerate(point_groups):
+        idx = all_idx[sl]
+        if idx.size == 0:
+            continue
+
+        # グループの重複を禁止（意図しない色の上書きを避ける）
+        if assigned[idx].any():
+            raise ValueError("point_groups contains overlapping slices (a point belongs to multiple groups).")
+        assigned[idx] = True
+
+        color = f"C{gi}"
+        if d == 3:
+            ax.scatter(X[idx, 0], X[idx, 1], X[idx, 2], s=point_size, color=color, label=name)
+        else:
+            ax.scatter(X[idx, 0], X[idx, 1], s=point_size, color=color, label=name)
+
+        if plot_line and idx.size >= 2:
+            if d == 3:
+                ax.plot(X[idx, 0], X[idx, 1], X[idx, 2], lw=1, color=color, label="_nolegend_")
+            else:
+                ax.plot(X[idx, 0], X[idx, 1], lw=1, color=color, label="_nolegend_")
+
+    # --- optional: points not covered by any group ---
+    rest = all_idx[~assigned]
+    if rest.size > 0:
+        if d == 3:
+            ax.scatter(X[rest, 0], X[rest, 1], X[rest, 2], s=point_size, color="0.6", label="Other")
+        else:
+            ax.scatter(X[rest, 0], X[rest, 1], s=point_size, color="0.6", label="Other")
 
     # --- labels ---
     if d == 2:
-        texts = [
-            ax.text(X[i, 0], X[i, 1], labels[i], fontsize=label_fontsize)
-            for i in range(n)
-        ]
+        texts = [ax.text(X[i, 0], X[i, 1], labels[i], fontsize=label_fontsize) for i in range(n)]
         adjust_text(
             texts,
             ax=ax,
@@ -128,19 +155,13 @@ def plt_mds(
         for i in range(n):
             ax.text(X[i, 0], X[i, 1], X[i, 2], labels[i], fontsize=label_fontsize)
 
-    # --- connect slices lines ---
-    if plot_line:
-        for sl, name in connect_slices:
-            idx = np.arange(n)[sl]
-            if len(idx) < 2:
-                continue
-            if d == 3:
-                ax.plot(X[idx, 0], X[idx, 1], X[idx, 2], lw=1, label=name)
-            else:
-                ax.plot(X[idx, 0], X[idx, 1], lw=1, label=name)
-
-    # --- cosmetics (NO set_xticklabels -> no warning) ---
+    # --- cosmetics (Warning回避: set_xticklabels/set_yticklabels を使わない) ---
     ax.tick_params(labelsize=tick_labelsize)
+    ax.set_xlabel("Dim 1", fontsize=axis_labelsize)
+    ax.set_ylabel("Dim 2", fontsize=axis_labelsize)
+    if d == 3:
+        ax.set_zlabel("Dim 3", fontsize=axis_labelsize)
+
     ax.legend(fontsize=legend_fontsize)
     ax.set_title(save_path.stem, fontsize=title_fontsize)
 
