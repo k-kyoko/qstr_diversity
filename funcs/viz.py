@@ -237,8 +237,8 @@ def plt_metric_single(
     if y_lim is not None:
         ax.set_ylim(*y_lim)
 
-    ax.set_title(f"Subject {subject}", fontsize=14)
-    ax.set_xlabel("Ratio (log scale)", fontsize=14)
+    #ax.set_title(f"Subject {subject}", fontsize=14)
+    ax.set_xlabel("Scale parameter t", fontsize=14)
     ax.set_ylabel(metric_name, fontsize=14)
 
     fig.tight_layout()
