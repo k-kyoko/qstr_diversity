@@ -96,13 +96,13 @@ def plt_mds(
     save_path.parent.mkdir(parents=True, exist_ok=True)
 
     # --- figure settings ---
-    figsize = (10, 7)
+    figsize = (7, 7)
     point_size = 40
     label_fontsize = 13
     tick_labelsize = 15
     title_fontsize = 24
     legend_fontsize = 18
-    axis_labelsize = 16
+    axis_labelsize = 13
 
     # --- figure/axes ---
     fig = plt.figure(figsize=figsize, tight_layout=True)
