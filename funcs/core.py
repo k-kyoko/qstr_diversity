@@ -125,6 +125,86 @@ def check_positivedefinite(A: np.array) -> bool:
     return False
 
 
+def find_jump_near_target(
+    df: pd.DataFrame,
+    subj: int,
+    target: float = 15.0,
+    band: float = 3.0,
+    pad: int = 5,
+    topk: int = 10,
+    verbose: bool = True,
+) -> dict:
+    # target付近のyでの不連続点を検出
+    # --- 1. データ準備 (抽出・変換・クリーニング) ---
+    s = pd.to_numeric(df.loc[subj], errors="coerce")
+    s.index = pd.to_numeric(s.index, errors="coerce")
+    s = s.dropna().sort_index()
+    
+    x, y = s.index.to_numpy(), s.to_numpy()
+    valid_mask = np.isfinite(x) & np.isfinite(y)
+    x, y = x[valid_mask], y[valid_mask]
+
+    if len(x) < 2:
+        raise ValueError("有効なデータ点が不足しています（2点未満）。")
+
+    # --- 2. 差分計算と探索候補の絞り込み ---
+    dy = np.diff(y)
+    ady = np.abs(dy)
+    lo_y, hi_y = target - band, target + band
+
+    # 区間の最小値が上限以下 かつ 最大値が下限以上 なら交差している
+    seg_min, seg_max = np.minimum(y[:-1], y[1:]), np.maximum(y[:-1], y[1:])
+    cand_indices = np.flatnonzero((seg_min <= hi_y) & (seg_max >= lo_y))
+
+    if cand_indices.size == 0:
+        raise ValueError(f"範囲 [{lo_y:.3g}, {hi_y:.3g}] を横切る区間が見つかりません。")
+
+    # --- 3. Top-K の抽出 ---
+    # 候補内での絶対値ジャンプが大きい順にソート
+    sorted_cands = cand_indices[np.argsort(ady[cand_indices])[::-1]]
+    best_idx = sorted_cands[0]
+    top_indices = sorted_cands[:topk]
+
+    # 結果作成用のヘルパー関数
+    def make_jump_info(idx, rank=None):
+        return {
+            "rank": rank,
+            "x_left": float(x[idx]),   "x_right": float(x[idx+1]),
+            "y_left": float(y[idx]),   "y_right": float(y[idx+1]),
+            "delta_y": float(dy[idx]), "abs_delta_y": float(ady[idx]),
+        }
+
+    # --- 4. 結果の構築 ---
+    # 表示用範囲（候補全体のインデックス範囲 ± pad）
+    disp_lo = max(0, int(cand_indices.min()) - pad)
+    disp_hi = min(len(y) - 1, int(cand_indices.max()) + 1 + pad)
+    
+    # 最大ジャンプ周辺データ
+    w = 3
+    around_sl = slice(max(0, best_idx - w), min(len(x), best_idx + w + 2))
+
+    best_jump = make_jump_info(best_idx)
+    result = {
+        "subj": subj,
+        "target": target, "band": band, "pad": pad,
+        "band_range_y": (lo_y, hi_y),
+        "search_range_idx_display": (disp_lo, disp_hi),
+        "candidate_diff_indices": cand_indices,
+        **best_jump,  # best_jumpの中身を展開して統合
+        "top_jumps_local": [make_jump_info(i, r+1) for r, i in enumerate(top_indices)],
+        "around": pd.DataFrame({"x": x[around_sl], "y": y[around_sl]}),
+    }
+
+    if verbose:
+        print(f"[subj={subj}] band_y=[{lo_y:.6g}, {hi_y:.6g}] | candidates: {cand_indices.size}")
+        print(f">> Max Jump: x={best_jump['x_left']:.4g}->{best_jump['x_right']:.4g}, "
+              f"dy={best_jump['delta_y']:.4g}")
+        print("\n-- Around Points --\n", result["around"].to_string(index=False))
+        print("\n-- Top Jumps --\n", pd.DataFrame(result["top_jumps_local"]).to_string(index=False))
+
+    return result
+
+
 ########## internal functions ##########
 
 def internal_check_input_instance(pd_input):

@@ -347,7 +347,7 @@ def plt_metric_individual(
                     continue
                 ax.tick_params(axis="x", which="both", labelbottom=True, labelsize=11)
 
-        fig.text(0.5, 0.04, "Ratio (log scale)", ha="center", fontsize=16)
+        fig.text(0.5, 0.04, "Scale parameter t", ha="center", fontsize=16)
         fig.text(0.04, 0.5, metric_name, va="center", rotation="vertical", fontsize=16)
         fig.subplots_adjust(
             left=0.08, right=0.99,
@@ -482,11 +482,11 @@ def plt_metric_overlay(
         else:
             raise ValueError("aggregate must be 'mean' or 'median'")
 
-        ax.plot(t, agg, linewidth=2.6, alpha=0.95, label=agg_label)
+        ax.plot(t, agg, linewidth=2.6, alpha=0.95, label=agg_label, color="tab:orange")
 
     _apply_log_x_pretty(ax, x_lim)
 
-    ax.set_xlabel("Ratio (log scale)", fontsize=14)
+    ax.set_xlabel("Scale parameter t", fontsize=14)
     ax.set_ylabel(metric_name, fontsize=14)
     if title is not None:
         ax.set_title(title, fontsize=18)
