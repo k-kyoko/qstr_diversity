@@ -30,29 +30,33 @@ def plt_dissim_heatmap(
     - dissimilarity_matrix (pd.DataFrame): 表示するdissimilarity matrix
     - title (str): ヒートマップのタイトル
     - annotation: numbers in each cell (or not)
+    - figpath: "" -> no title
     """
 
     fig, ax = plt.subplots(figsize=(10, 8), tight_layout=True)
     if mode_dissim:
-        sns.heatmap(dissimilarity_matrix, annot=annotation, fmt=".2f",
-                    cmap="GnBu", cbar=True, vmin=0, vmax=7, square=True)
+        sns.heatmap(dissimilarity_matrix, annot=annotation, fmt=".0f",
+                    cmap="GnBu", cbar=True, vmin=0, vmax=7, square=True, ax=ax, annot_kws={"size": 14})
     else:
-        sns.heatmap(dissimilarity_matrix, annot=annotation, fmt=".2f",
-                    cmap="GnBu_r", cbar=True, square=True)
+        sns.heatmap(dissimilarity_matrix, annot=annotation, fmt=".0f",
+                    cmap="GnBu_r", cbar=True, square=True, ax=ax, annot_kws={"size": 14})
 
     xticklabels = ax.get_xticklabels()
     yticklabels = ax.get_yticklabels()
     ax.set_xticklabels(xticklabels, fontsize=15)
     ax.set_yticklabels(yticklabels, fontsize=15)
+    ax.xaxis.label.set_size(16)
+    ax.yaxis.label.set_size(16)
 
-    figpath = Path(figpath)
-    safe_stem = re.sub(r"[:/\s]", "_", figpath.stem)
-    save_path = figpath.with_name(safe_stem).with_suffix(".png")
-
-    title = figpath.stem  # last part of figpath
-    ax.set_title(title, fontsize=24)
+    if figpath != "":
+        figpath = Path(figpath)
+        safe_stem = re.sub(r"[:/\s]", "_", figpath.stem)
+        save_path = figpath.with_name(safe_stem).with_suffix(".png")
+        title = figpath.stem  # last part of figpath
+        ax.set_title(title, fontsize=24)
+        
     cbar = ax.collections[0].colorbar
-    cbar.ax.tick_params(labelsize=18)
+    cbar.ax.tick_params(labelsize=24)
 
     if save:
         figpath.parent.mkdir(parents=True, exist_ok=True)

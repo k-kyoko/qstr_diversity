@@ -8,7 +8,7 @@ import warnings
 def create_dissim_amy(raw: pd.DataFrame, sub_no:int=-1, unique_words: Optional[np.ndarray] = None) -> pd.DataFrame:
     """
     Amy式データフレームから単語のdissimilarity matrixを作成する関数
-    For symmetry matrix
+    For the symmetry matrix
     Parameters:
     - raw (pd.DataFrame): 
     - unique_words (np.array):
@@ -54,6 +54,96 @@ def create_dissim_amy(raw: pd.DataFrame, sub_no:int=-1, unique_words: Optional[n
 
     return dissim_mtx
 
+
+import pandas as pd
+from typing import Union, Sequence, Optional
+
+
+def create_dissim_angus(
+    raw: pd.DataFrame,
+    sub_no: Union[int, Sequence[int]],
+    unique_words: Optional[Sequence] = None,
+    *,
+    col1_name: str = "col1",
+    col2_name: str = "col2",
+    pid_name: str = "pID",
+    dist_name: str = "dist",
+):
+    """
+    Construct a dist matrix from a raw DataFrame, using unique values of col1 and col2 as row and column labels.
+
+    Parameters
+    ----------
+    raw : pd.DataFrame A DataFrame containing [col1_name, col2_name, pid_name, dist_name].
+    sub_no : int or sequence of int
+        - int -> the matrix for that participant.
+        - sequence of int -> a list of matrices, one for each participant.
+        - -1 -> Constructs matrices for all pIDs and returns their average matrix.
+    unique_words : sequence, optional
+        If provided, used as the row and column labels of the matrix.
+    col1_name, col2_name, pid_name, dist_name : str
+        Column names in the input DataFrame.
+    ----------
+    -> return pd.DataFrame or list[pd.DataFrame]
+    """
+
+    required_cols = {col1_name, col2_name, pid_name, dist_name}
+    missing = required_cols - set(raw.columns)
+    if missing:
+        raise ValueError(f"raw is missing required columns: {missing}")
+
+    def _get_axis_labels(df: pd.DataFrame):
+        if unique_words is not None:
+            return list(unique_words)
+        labels = pd.unique(
+            pd.concat([df[col1_name], df[col2_name]], ignore_index=True)
+        )
+        try:
+            return sorted(labels)
+        except TypeError: # If mixed types prevent sorting, preserve the order of appearance
+            return list(labels)
+
+    def _make_one_matrix(df_sub: pd.DataFrame, axis_labels):
+        mat = df_sub.pivot(
+            index=col1_name,
+            columns=col2_name,
+            values=dist_name
+        )
+        mat = mat.reindex(index=axis_labels, columns=axis_labels)
+        return mat
+
+    axis_labels = _get_axis_labels(raw)
+
+    # Case: average across all participants
+    if sub_no == -1:
+        all_pids = raw[pid_name].dropna().unique()
+        matrices = []
+
+        for pid in all_pids:
+            df_sub = raw[raw[pid_name] == pid]
+            mat = _make_one_matrix(df_sub, axis_labels)
+            matrices.append(mat)
+
+        if len(matrices) == 0:
+            raise ValueError("No valid pID values were found for averaging.")
+
+        avg_mat = sum(matrices) / len(matrices)
+        return avg_mat
+
+    # Case: multiple participants
+    if isinstance(sub_no, Sequence) and not isinstance(sub_no, (str, bytes)):
+        result = []
+        for pid in sub_no:
+            df_sub = raw[raw[pid_name] == pid]
+            mat = _make_one_matrix(df_sub, axis_labels)
+            result.append(mat)
+        return result
+
+    # Case: single participant
+    df_sub = raw[raw[pid_name] == sub_no]
+    
+    return _make_one_matrix(df_sub, axis_labels)
+    
 
 def cal_dissim2dist(dissim_mtx: pd.DataFrame) -> pd.DataFrame:
     # check input validity
