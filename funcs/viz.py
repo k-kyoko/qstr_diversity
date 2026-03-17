@@ -54,7 +54,7 @@ def plt_dissim_heatmap(
         save_path = figpath.with_name(safe_stem).with_suffix(".png")
         title = figpath.stem  # last part of figpath
         ax.set_title(title, fontsize=24)
-        
+
     cbar = ax.collections[0].colorbar
     cbar.ax.tick_params(labelsize=24)
 
@@ -63,6 +63,7 @@ def plt_dissim_heatmap(
         save_path = figpath.with_suffix(".png")
         plt.savefig(save_path, dpi=300)
     plt.show()
+    return None
 
 
 def plt_mds(
@@ -74,14 +75,14 @@ def plt_mds(
         (slice(10, 23), "Emotions"),
     ),
     plot_line: bool = False,
+    xlim: tuple[float, float] = (0, 0),
+    ylim: tuple[float, float] = (0, 0),
+    figsize: tuple[float, float] = (7, 7),
 ) -> Path:
     """
     sklearn.manifold.MDS の embedding（mds_res）を 2D/3D で可視化して保存する。
-
     - 点の色は point_groups（slice ごとのグルーピング）に合わせて変える
     - plot_line=True の場合、各グループ内の点を同色で順に結ぶ
-    - 2D: adjust_text でラベル衝突回避を試みる
-    - 3D: adjust_text は非対応なので単純配置（ax.text）にする
     """
 
     X = np.asarray(mds_res)
@@ -100,16 +101,15 @@ def plt_mds(
     save_path.parent.mkdir(parents=True, exist_ok=True)
 
     # --- figure settings ---
-    figsize = (7, 7)
     point_size = 40
-    label_fontsize = 13
-    tick_labelsize = 15
+    label_fontsize = 15
+    tick_labelsize = 13
     title_fontsize = 24
     legend_fontsize = 18
-    axis_labelsize = 13
+    axis_labelsize = 15
 
     # --- figure/axes ---
-    fig = plt.figure(figsize=figsize, tight_layout=True)
+    fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(111, projection="3d") if d == 3 else fig.add_subplot(111)
 
     # --- group scatter (colored) ---
@@ -145,6 +145,15 @@ def plt_mds(
             ax.scatter(X[rest, 0], X[rest, 1], X[rest, 2], s=point_size, color="0.6", label="Other")
         else:
             ax.scatter(X[rest, 0], X[rest, 1], s=point_size, color="0.6", label="Other")
+
+    # --- axis range for 2D ---
+    if d == 2:
+        if xlim == (0, 0) or ylim == (0, 0):
+            pass
+        else:
+            ax.set_xlim(*xlim)
+            ax.set_ylim(*ylim)
+            ax.set_aspect('equal', adjustable='box')
 
     # --- labels ---
     if d == 2:
@@ -185,7 +194,7 @@ def plt_metric_single(
     xlim: Optional[tuple[float, float]] = None,
     positive_definite_df: Optional[pd.DataFrame] = None,
     posdef_mode: Literal["two_color", "true_only"] = "two_color",
-    figsize: tuple[float, float] = (7.2, 4.6),
+    figsize: tuple[float, float] = (7, 6),
     show: bool = True,
 ) -> str:
     """
@@ -242,8 +251,8 @@ def plt_metric_single(
         ax.set_ylim(*y_lim)
 
     #ax.set_title(f"Subject {subject}", fontsize=14)
-    ax.set_xlabel("Scale parameter t", fontsize=14)
-    ax.set_ylabel(metric_name, fontsize=14)
+    ax.set_xlabel("Scale parameter t", fontsize=15)
+    ax.set_ylabel(metric_name, fontsize=15)
 
     fig.tight_layout()
 
