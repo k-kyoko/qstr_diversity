@@ -555,5 +555,7 @@ def _apply_log_x_pretty(ax: plt.Axes, xlim: tuple[float, float]) -> None:
     ax.xaxis.set_minor_locator(LogLocator(base=10.0, subs=np.arange(2, 10) * 0.1, numticks=100))
     ax.xaxis.set_minor_formatter(NullFormatter())
 
+    #ax.grid(False, axis="y", which="both")
+    #ax.grid(True, axis="x", which="major", linestyle="--", alpha=0.3)
     ax.grid(True, which="major", linestyle="--", alpha=0.3)
     ax.grid(True, which="minor", linestyle=":", alpha=0.1)
