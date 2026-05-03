@@ -25,8 +25,5 @@ RUN jupyter server extension enable --py jupyterlab_git && \
     jupyter server extension enable --py jupyter_lsp
 
 USER ${NB_UID}
-
-# 作業ディレクトリ（Gitはここにマウント）
 WORKDIR /home/jovyan/work
-
-CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--ServerApp.token=", "--ServerApp.password="]
+CMD ["start-notebook.sh", "--ServerApp.ip='0.0.0.0'", "--ServerApp.port=8888", "--ServerApp.no_browser=True"]
