@@ -210,3 +210,9 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Jupyter の "Open With > Editor" が作る作業用コピー
+.virtual_documents/
+
+# Google Drive の一時ディレクトリ
+.tmp.driveupload/

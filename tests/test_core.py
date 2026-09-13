@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from itertools import product
 import pytest
-from funcs.core import *
+from qstr_diversity.core import *
 
 
 #def test_create_dissim_amy():
