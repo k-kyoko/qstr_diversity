@@ -214,6 +214,25 @@ def check_positivedefinite(A: np.array) -> bool:
             return False  # semi-positive definite is here
     return False
 
+def cal_sim2usable_digits(sim_mtx: pd.DataFrame) -> float:
+    """How many decimal digits of the float64 genmag can be trusted at this t.
+
+    Purpose: 16 minus the digits the conditioning of the similarity matrix
+    destroys. np.linalg.pinv silently discards the directions it judges to be
+    null, which turns an ill-conditioned point into a plausible-looking wrong
+    answer rather than an obvious failure. This is the number that says when
+    that has happened, and it is measured from the matrix itself rather than
+    assumed from t.
+    """
+    # check input validity
+    A = internal_check_input_instance(sim_mtx)
+    internal_check_basic_errors(1, A=A)
+
+    # calculation
+    condition_number = np.linalg.cond(A)
+    if not np.isfinite(condition_number):
+        return 0.0
+    return float(max(0.0, 16.0 - np.log10(max(condition_number, 1.0))))
 
 def find_jump_near_target(
     df: pd.DataFrame,
